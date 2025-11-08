@@ -1,0 +1,26 @@
+__pycache__/
+.DS_Store
+.venv/
+env/
+venv/
+
+# Large artifacts
+data/**
+!data/**/.gitkeep
+models/**
+!models/**/.gitkeep
+outputs/**
+
+# Videos and images
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.jpg
+*.jpeg
+*.png
+
+# Logs
+logs/**
+
+

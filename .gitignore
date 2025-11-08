@@ -1,0 +1,35 @@
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Python
+__pycache__/
+*.py[cod]
+.mypy_cache/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Environments
+.env
+.env.*
+.venv/
+venv/
+
+# Builds / logs
+dist/
+build/
+*.log
+*.tmp
+
+# Project datasets and generated artifacts
+handstand/data/
+
+# Model weights and large binaries
+handstand/yolov8n-pose.pt
+handstand/models/motionbert_repo/params/
+**/*.pt
+**/*.pth
+**/*.pkl
+
+
