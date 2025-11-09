@@ -7,7 +7,7 @@ from typing import Dict, Optional, Tuple
 import numpy as np
 
 from lib.io_utils import ensure_dir, load_npz, save_json, save_npz, video_size_and_frames
-from lib.joints import COCO17_NAMES
+from lib.joints import H36M_17_NAMES
 from lib.metrics import align_sequence, summarize_sequence_metrics
 
 
@@ -26,7 +26,7 @@ def find_3d_sequence(sample_dir: str) -> Optional[Tuple[np.ndarray, str]]:
             # sometimes shape could be (J,3,T)
             if key in data:
                 arr = np.array(data[key])
-                if arr.ndim == 3 and arr.shape[0] == 3 and arr.shape[2] == len(COCO17_NAMES):
+                if arr.ndim == 3 and arr.shape[0] == 3 and arr.shape[2] == len(H36M_17_NAMES):
                     arr = np.transpose(arr, (2, 1, 0))
                     return arr.astype(float), npz_path
     # Try JSON
@@ -52,7 +52,7 @@ def find_3d_sequence(sample_dir: str) -> Optional[Tuple[np.ndarray, str]]:
             if arr.ndim == 3 and arr.shape[2] == 3:
                 return arr.astype(float), npy_path
             # Sometimes (N*T, J, 3) or (J, 3, T) – handle common transpose
-            if arr.ndim == 3 and arr.shape[0] == 3 and arr.shape[1] == len(COCO17_NAMES):
+            if arr.ndim == 3 and arr.shape[0] == 3 and arr.shape[1] == len(H36M_17_NAMES):
                 arr = np.transpose(arr, (2, 1, 0))
                 return arr.astype(float), npy_path
         except Exception:
@@ -98,7 +98,7 @@ def process_split(split: str):
                 pass
         aligned = align_sequence(seq3d)
         metrics = summarize_sequence_metrics(aligned, fps=fps)
-        save_npz(out_aligned_npz, aligned=aligned, joint_names=np.array(COCO17_NAMES))
+        save_npz(out_aligned_npz, aligned=aligned, joint_names=np.array(H36M_17_NAMES))
         save_json(metrics, out_metrics_json)
         print(f"Aligned+metrics saved for {base}")
 

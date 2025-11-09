@@ -31,4 +31,27 @@ def neck_index_from_shoulders() -> int:
     """
     return -1
 
+# Human3.6M 17-joint order used by MotionBERT outputs (see halpe2h36m mapping)
+H36M_17_NAMES: List[str] = [
+    "pelvis",          # 0
+    "right_hip",       # 1
+    "right_knee",      # 2
+    "right_ankle",     # 3
+    "left_hip",        # 4
+    "left_knee",       # 5
+    "left_ankle",      # 6
+    "spine",           # 7
+    "neck",            # 8
+    "nose",            # 9
+    "head_top",        # 10
+    "left_shoulder",   # 11
+    "left_elbow",      # 12
+    "left_wrist",      # 13
+    "right_shoulder",  # 14
+    "right_elbow",     # 15
+    "right_wrist",     # 16
+]
+
+H36M_INDEX: Dict[str, int] = {name: i for i, name in enumerate(H36M_17_NAMES)}
+
 

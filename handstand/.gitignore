@@ -3,6 +3,7 @@ __pycache__/
 .venv/
 env/
 venv/
+.venv310/
 
 # Large artifacts
 data/**
