@@ -2,6 +2,32 @@
 
 Static freestanding floor handstand analysis using 2D MMPose + MotionBERT 3D lift, canonical alignment (pelvis→X, hip-center→neck→Z), angle metrics, baseline vs pros, and GPT‑5 feedback.
 
+## Web UI quickstart
+Use the React site + FastAPI to upload a video and get 2D annotated output, metrics, and AI coaching.
+
+1) Backend API
+```bash
+source .venv/bin/activate
+export PYTORCH_ENABLE_MPS_FALLBACK=1
+# Choose one or both:
+export OPENAI_API_KEY="..." ; export OPENAI_MODEL="gpt-5"
+export GOOGLE_API_KEY="..."  # for Gemini, e.g. gemini-2.5-pro
+uvicorn server.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+2) Frontend (Vite React)
+```bash
+cd web
+npm install
+npm run dev
+```
+Open http://127.0.0.1:5173 and upload your MP4. Pick LLM (OpenAI/Gemini) in the dropdown.
+
+Troubleshooting:
+- 404 from the UI → ensure API runs on 127.0.0.1:8000 (proxy target in `web/vite.config.js`).
+- Black 2D video → ensure `ffmpeg` is installed; output is H.264/yuv420p.
+- LLM errors → verify `OPENAI_API_KEY`/`GOOGLE_API_KEY` are set in the API shell.
+
 ## Quick start
 1) Create a virtualenv (Mac, CPU or MPS):
 ```bash
