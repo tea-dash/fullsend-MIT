@@ -49,15 +49,23 @@ def call_openai_markdown(prompt: str) -> str:
         return f"openai package not installed properly ({e}).\n\nPrompt:\n{prompt}"
     client = OpenAI(api_key=api_key)
     try:
-        resp = client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": "You are a helpful expert handstand coach."},
-                {"role": "user", "content": prompt},
-            ],
-            temperature=0.2,
-        )
-        text = resp.choices[0].message.content or ""
+        if model.startswith("gpt-5"):
+            # Use Responses API for latest models; omit temperature
+            resp = client.responses.create(
+                model=model,
+                input=prompt,
+            )
+            text = resp.output_text or ""
+        else:
+            # Chat Completions for established chat models
+            resp = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": "You are a helpful expert handstand coach."},
+                    {"role": "user", "content": prompt},
+                ],
+            )
+            text = resp.choices[0].message.content or ""
         return text
     except Exception as e:
         return f"OpenAI API error: {e}\n\nPrompt:\n{prompt}"

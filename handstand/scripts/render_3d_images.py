@@ -8,8 +8,7 @@ from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
 import numpy as np  # noqa: E402
 
 from lib.io_utils import load_npz, ensure_dir
-from lib.skeleton import COCO17_EDGES
-from lib.joints import COCO17_INDEX, COCO17_NAMES
+from lib.skeleton import H36M_EDGES
 
 
 def render_frame_3d(points: np.ndarray, out_png: str) -> None:
@@ -17,7 +16,7 @@ def render_frame_3d(points: np.ndarray, out_png: str) -> None:
     ax = fig.add_subplot(111, projection="3d")
     xs, ys, zs = points[:, 0], points[:, 1], points[:, 2]
     ax.scatter(xs, ys, zs, c="orange", s=20, depthshade=True)
-    for a, b in COCO17_EDGES:
+    for a, b in H36M_EDGES:
         ax.plot([xs[a], xs[b]], [ys[a], ys[b]], [zs[a], zs[b]], c="blue", linewidth=2)
     ax.set_xlabel("X")
     ax.set_ylabel("Y")

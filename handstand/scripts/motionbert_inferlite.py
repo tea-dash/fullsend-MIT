@@ -8,6 +8,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 
+import cv2
 
 def main():
     parser = argparse.ArgumentParser(description="Lightweight MotionBERT inference without SMPL/visualization")
@@ -45,12 +46,39 @@ def main():
             "Please download the pose3d global lite weights and place them there."
         )
     checkpoint = torch.load(ckpt_path, map_location="cpu")
-    model_backbone.load_state_dict(checkpoint["model_pos"], strict=True)
+    # Support multiple checkpoint formats
+    if isinstance(checkpoint, dict) and "model_pos" in checkpoint:
+        state = checkpoint["model_pos"]
+        model_backbone.load_state_dict(state, strict=True)
+    elif isinstance(checkpoint, dict) and "model" in checkpoint:
+        # Use MotionBERT's helper to handle DataParallel prefixes
+        from lib.utils.learning import load_pretrained_weights  # type: ignore
+        model_backbone = load_pretrained_weights(model_backbone, {"state_dict": checkpoint["model"]})
+    else:
+        # Fallback: try to load directly assuming checkpoint is a state dict
+        model_backbone.load_state_dict(checkpoint, strict=False)
     model_pos = model_backbone
 
     os.makedirs(args.out_path, exist_ok=True)
     # Scale 2D to [-1,1] (per infer_wild default when pixel flag is False)
-    dataset = WildDetDataset(args.json_path, clip_len=args.clip_len, scale_range=[1, 1], focus=None)
+    # Normalize 2D keypoints to [-1, 1] using video size for proper scale expected by MotionBERT
+    vid_size = None
+    try:
+        cap = cv2.VideoCapture(args.vid_path)
+        if cap.isOpened():
+            vw = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            vh = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            vid_size = (vw, vh)
+        cap.release()
+    except Exception:
+        vid_size = None
+    dataset = WildDetDataset(
+        args.json_path,
+        clip_len=args.clip_len,
+        vid_size=vid_size,
+        scale_range=[1, 1],
+        focus=None,
+    )
     loader = DataLoader(
         dataset,
         batch_size=1,

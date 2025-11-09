@@ -1,9 +1,11 @@
 import argparse
 import json
 import os
+import tempfile
 
 import cv2
 import numpy as np
+import ffmpeg  # type: ignore
 
 from lib.io_utils import ensure_dir
 from lib.skeleton import COCO17_EDGES
@@ -38,8 +40,10 @@ def main():
     h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = cap.get(cv2.CAP_PROP_FPS)
     out_path = args.out or os.path.splitext(args.video)[0] + "_annotated.mp4"
+    # Write an intermediate MP4V and then transcode to H.264/yuv420p for browser compatibility
+    tmp_path = os.path.splitext(out_path)[0] + "_mp4v.mp4"
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    writer = cv2.VideoWriter(out_path, fourcc, fps if fps > 0 else 30.0, (w, h))
+    writer = cv2.VideoWriter(tmp_path, fourcc, fps if fps > 0 else 30.0, (w, h))
     idx = 0
     while True:
         ret, frame = cap.read()
@@ -52,6 +56,21 @@ def main():
         idx += 1
     writer.release()
     cap.release()
+    # Transcode to H.264 yuv420p + faststart
+    try:
+        (
+            ffmpeg
+            .input(tmp_path)
+            .output(out_path, vcodec="libx264", pix_fmt="yuv420p", movflags="+faststart", r=fps if fps > 0 else 30.0, preset="fast")
+            .overwrite_output()
+            .run(quiet=True)
+        )
+        os.remove(tmp_path)
+    except Exception as e:
+        # Fallback to the MP4V file if ffmpeg not available
+        if os.path.exists(out_path):
+            os.remove(out_path)
+        os.rename(tmp_path, out_path)
     print(f"Annotated video saved to {out_path}")
 
 

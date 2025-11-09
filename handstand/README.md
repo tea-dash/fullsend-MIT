@@ -62,6 +62,23 @@ python scripts/analyze_user_clip.py
 python scripts/gpt_feedback.py
 ```
 
+## Web UI + API
+Run the API (FastAPI) and the Vite React frontend.
+
+### API
+```bash
+source .venv/bin/activate
+uvicorn server.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+### Frontend (Vite)
+```bash
+cd web
+npm install
+npm run dev
+```
+Open http://127.0.0.1:5173 — upload a video; the UI calls `/api/analyze-sync` and shows outputs.
+
 ## Paths
 - Data lives under `data/{pro,user}/{raw,trimmed,keypoints2d,poses3d,aligned,metrics}`.
 - MotionBERT repo expected at `models/motionbert_repo` (configurable with `MOTIONBERT_DIR`).

@@ -10,24 +10,26 @@ from .geometry import (
     mid_point,
     normalize_vector,
 )
-from .joints import COCO17_INDEX
+from .joints import H36M_INDEX
 
 
 def compute_body_axes_frame(points_xyz: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     """
-    Compute origin and rotation axes from a single frame using hips and neck proxy.
-    points_xyz: (J, 3), COCO-17 order. Neck is approximated as midpoint of shoulders.
+    Compute origin and rotation axes from a single frame using hips and neck.
+    points_xyz: (J, 3), H36M-17 order.
     """
-    li = COCO17_INDEX["left_hip"]
-    ri = COCO17_INDEX["right_hip"]
-    lsi = COCO17_INDEX["left_shoulder"]
-    rsi = COCO17_INDEX["right_shoulder"]
-
-    left_hip = points_xyz[li]
-    right_hip = points_xyz[ri]
-    neck = 0.5 * (points_xyz[lsi] + points_xyz[rsi])
+    left_hip = points_xyz[H36M_INDEX["left_hip"]]
+    right_hip = points_xyz[H36M_INDEX["right_hip"]]
+    neck = points_xyz[H36M_INDEX["neck"]]
     origin, R = canonical_axes(left_hip, right_hip, neck)
-    return origin, R
+    # Ensure Y axis derives from pelvis-to-neck direction, keep orthonormal basis
+    pelvis = points_xyz[H36M_INDEX["pelvis"]]
+    z_axis = normalize_vector(neck - pelvis)
+    x_axis = normalize_vector(right_hip - left_hip)
+    y_axis = normalize_vector(np.cross(z_axis, x_axis))
+    x_axis = normalize_vector(np.cross(y_axis, z_axis))
+    R = np.stack([x_axis, y_axis, z_axis], axis=1)
+    return pelvis, R
 
 
 def align_sequence(points_xyz_seq: np.ndarray) -> np.ndarray:
@@ -39,14 +41,18 @@ def align_sequence(points_xyz_seq: np.ndarray) -> np.ndarray:
     aligned = np.zeros_like(points_xyz_seq)
     for t in range(T):
         origin, R = compute_body_axes_frame(points_xyz_seq[t])
-        aligned[t] = transform_points(points_xyz_seq[t], origin, R)
+        aligned_frame = transform_points(points_xyz_seq[t], origin, R)
+        pelvis = aligned_frame[H36M_INDEX["pelvis"]]
+        aligned_frame -= pelvis
+        aligned_frame[:, 2] *= -1  # flip Z so head points +Z
+        aligned[t] = aligned_frame
     return aligned
 
 
 def joint_angle_triplet(points_xyz: np.ndarray, a: str, b: str, c: str) -> float:
-    ai = COCO17_INDEX[a]
-    bi = COCO17_INDEX[b]
-    ci = COCO17_INDEX[c]
+    ai = H36M_INDEX[a]
+    bi = H36M_INDEX[b]
+    ci = H36M_INDEX[c]
     return angle_three_points(points_xyz[ai], points_xyz[bi], points_xyz[ci])
 
 
@@ -58,14 +64,13 @@ def compute_core_angles(points_xyz: np.ndarray) -> Dict[str, float]:
     # Elbows
     angles["left_elbow"] = joint_angle_triplet(points_xyz, "left_shoulder", "left_elbow", "left_wrist")
     angles["right_elbow"] = joint_angle_triplet(points_xyz, "right_shoulder", "right_elbow", "right_wrist")
-    # Shoulders: angle between trunk (neck->shoulder) and upper arm (shoulder->elbow)
-    # Use neck proxy as mid-shoulders
-    neck = 0.5 * (points_xyz[COCO17_INDEX["left_shoulder"]] + points_xyz[COCO17_INDEX["right_shoulder"]])
-    angles["left_shoulder"] = angle_three_points(neck, points_xyz[COCO17_INDEX["left_shoulder"]], points_xyz[COCO17_INDEX["left_elbow"]])
-    angles["right_shoulder"] = angle_three_points(neck, points_xyz[COCO17_INDEX["right_shoulder"]], points_xyz[COCO17_INDEX["right_elbow"]])
+    # Shoulders relative to neck
+    neck = points_xyz[H36M_INDEX["neck"]]
+    angles["left_shoulder"] = angle_three_points(neck, points_xyz[H36M_INDEX["left_shoulder"]], points_xyz[H36M_INDEX["left_elbow"]])
+    angles["right_shoulder"] = angle_three_points(neck, points_xyz[H36M_INDEX["right_shoulder"]], points_xyz[H36M_INDEX["right_elbow"]])
     # Hips
-    angles["left_hip"] = joint_angle_triplet(points_xyz, "left_shoulder", "left_hip", "left_knee")
-    angles["right_hip"] = joint_angle_triplet(points_xyz, "right_shoulder", "right_hip", "right_knee")
+    angles["left_hip"] = joint_angle_triplet(points_xyz, "spine", "left_hip", "left_knee")
+    angles["right_hip"] = joint_angle_triplet(points_xyz, "spine", "right_hip", "right_knee")
     # Knees
     angles["left_knee"] = joint_angle_triplet(points_xyz, "left_hip", "left_knee", "left_ankle")
     angles["right_knee"] = joint_angle_triplet(points_xyz, "right_hip", "right_knee", "right_ankle")
@@ -76,10 +81,10 @@ def compute_bodyline_deviation(points_xyz: np.ndarray) -> Dict[str, float]:
     """
     Compute body-line deviation: global Z vs line from mid-wrists to mid-ankles.
     """
-    lw = points_xyz[COCO17_INDEX["left_wrist"]]
-    rw = points_xyz[COCO17_INDEX["right_wrist"]]
-    la = points_xyz[COCO17_INDEX["left_ankle"]]
-    ra = points_xyz[COCO17_INDEX["right_ankle"]]
+    lw = points_xyz[H36M_INDEX["left_wrist"]]
+    rw = points_xyz[H36M_INDEX["right_wrist"]]
+    la = points_xyz[H36M_INDEX["left_ankle"]]
+    ra = points_xyz[H36M_INDEX["right_ankle"]]
     mid_wrists = 0.5 * (lw + rw)
     mid_ankles = 0.5 * (la + ra)
     line = mid_wrists - mid_ankles
@@ -114,7 +119,7 @@ def summarize_sequence_metrics(aligned_seq: np.ndarray, fps: float) -> Dict[str,
     for t in range(T):
         frame = aligned_seq[t]
         # pelvis mid as proxy for hip center in aligned space
-        hip_center = 0.5 * (frame[COCO17_INDEX["left_hip"]] + frame[COCO17_INDEX["right_hip"]])
+        hip_center = 0.5 * (frame[H36M_INDEX["left_hip"]] + frame[H36M_INDEX["right_hip"]])
         hip_xy.append(hip_center[:2])
         ang = compute_core_angles(frame)
         for k, v in ang.items():
