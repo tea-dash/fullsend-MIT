@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse
 ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "data"
 USER_RAW = DATA_DIR / "user" / "raw"
+BASELINE_JSON = DATA_DIR / "pro" / "metrics" / "baseline.json"
 
 app = FastAPI(title="Handstand Analysis API")
 
@@ -61,17 +62,33 @@ async def analyze_sync(
             ["python"] + args, cwd=ROOT, check=True, env=env
         )
 
+    # Pick device for 2D extraction robustly
+    device = "cpu"
+    try:
+        import torch  # type: ignore
+
+        if getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
+            device = "mps"
+    except Exception:
+        device = "cpu"
+
     # 1) Normalize (process all user files; the new one is picked up)
     run_py(["scripts/preprocess_trim.py", "--split", "user"])
     # 2) 2D
-    run_py(["scripts/extract_2d_ultralytics.py", "--split", "user", "--device", "mps"])
+    run_py(["scripts/extract_2d_ultralytics.py", "--split", "user", "--device", device])
     # 3) Convert to Halpe26
     run_py(["scripts/convert_to_halpe26.py", "--split", "user"])
     # 4) 3D lift
     run_py(["scripts/lift_3d_motionbert.py", "--split", "user", "--lite"])
     # 5) Align + metrics
     run_py(["scripts/align_and_metrics.py", "--split", "user"])
-    # 6) Analyze vs baseline (baseline should exist)
+    # 6) Analyze vs baseline (build baseline if missing)
+    if not BASELINE_JSON.exists():
+        try:
+            run_py(["scripts/build_baseline.py"])
+        except Exception:
+            # Baseline build may fail if pro metrics are absent; continue and let analyze raise
+            pass
     run_py(["scripts/analyze_user_clip.py"])
 
     # 6.5) Produce videos (3D render + 2D overlay) for this job
@@ -92,6 +109,10 @@ async def analyze_sync(
 
     # 7) LLM feedback
     feedback_path = DATA_DIR / "user" / "metrics" / "gpt_feedback.md"
+    if llm == "gemini":
+        # Fallback to OpenAI if Google key is not set
+        if not env.get("GOOGLE_API_KEY"):
+            llm = "openai"
     if llm == "gemini":
         feedback_path = DATA_DIR / "user" / "metrics" / "gemini_feedback.md"
         run_py(["scripts/gemini_feedback.py", "--model", gemini_model])
