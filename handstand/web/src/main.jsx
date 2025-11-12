@@ -25,8 +25,16 @@ function App() {
       form.append("llm", llm);
       form.append("gemini_model", model);
       appendLog("Uploading and analyzing...");
-      const res = await fetch("/api/analyze-sync", { method: "POST", body: form });
-      if (!res.ok) throw new Error(`API error ${res.status}`);
+        const res = await fetch("/api/analyze-sync", { method: "POST", body: form });
+        if (!res.ok) {
+          // try to surface backend error details
+          let detail = "";
+          try {
+            const txt = await res.text();
+            detail = txt;
+          } catch {}
+          throw new Error(`API error ${res.status}${detail ? `: ${detail}` : ""}`);
+        }
       const json = await res.json();
       setResult(json);
       try {

@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "data"
 USER_RAW = DATA_DIR / "user" / "raw"
 BASELINE_JSON = DATA_DIR / "pro" / "metrics" / "baseline.json"
+MB_LITE_CKPT_REL = Path("checkpoint/pose3d/FT_MB_lite_MB_ft_h36m_global_lite/best_epoch.bin")
 
 app = FastAPI(title="Handstand Analysis API")
 
@@ -57,10 +58,25 @@ async def analyze_sync(
         "MOTIONBERT_DIR", str(ROOT / "models" / "motionbert_repo")
     )
 
-    def run_py(args: list[str]):
-        subprocess.run(
-            ["python"] + args, cwd=ROOT, check=True, env=env
+    def run_py(args: list[str]) -> str:
+        """
+        Run a python script, capture output, and raise a readable error if it fails.
+        """
+        p = subprocess.run(
+            ["python"] + args,
+            cwd=ROOT,
+            env=env,
+            text=True,
+            capture_output=True,
         )
+        if p.returncode != 0:
+            cmd = "python " + " ".join(args)
+            raise RuntimeError(
+                f"Command failed ({p.returncode}): {cmd}\n"
+                f"stdout:\n{p.stdout}\n"
+                f"stderr:\n{p.stderr}\n"
+            )
+        return p.stdout
 
     # Pick device for 2D extraction robustly
     device = "cpu"
@@ -72,24 +88,42 @@ async def analyze_sync(
     except Exception:
         device = "cpu"
 
-    # 1) Normalize (process all user files; the new one is picked up)
-    run_py(["scripts/preprocess_trim.py", "--split", "user"])
-    # 2) 2D
-    run_py(["scripts/extract_2d_ultralytics.py", "--split", "user", "--device", device])
-    # 3) Convert to Halpe26
-    run_py(["scripts/convert_to_halpe26.py", "--split", "user"])
-    # 4) 3D lift
-    run_py(["scripts/lift_3d_motionbert.py", "--split", "user", "--lite"])
-    # 5) Align + metrics
-    run_py(["scripts/align_and_metrics.py", "--split", "user"])
-    # 6) Analyze vs baseline (build baseline if missing)
-    if not BASELINE_JSON.exists():
-        try:
-            run_py(["scripts/build_baseline.py"])
-        except Exception:
-            # Baseline build may fail if pro metrics are absent; continue and let analyze raise
-            pass
-    run_py(["scripts/analyze_user_clip.py"])
+    # Preflight checks for clearer errors
+    mb_dir = Path(env["MOTIONBERT_DIR"])
+    ckpt_path = mb_dir / MB_LITE_CKPT_REL
+    if not ckpt_path.exists():
+        return JSONResponse(
+            {
+                "error": (
+                    "MotionBERT checkpoint not found.\n"
+                    f"Expected at: {ckpt_path}\n"
+                    "Download the global-lite 3D weights and place them there."
+                )
+            },
+            status_code=500,
+        )
+
+    try:
+        # 1) Normalize (process all user files; the new one is picked up)
+        run_py(["scripts/preprocess_trim.py", "--split", "user"])
+        # 2) 2D
+        run_py(["scripts/extract_2d_ultralytics.py", "--split", "user", "--device", device])
+        # 3) Convert to Halpe26
+        run_py(["scripts/convert_to_halpe26.py", "--split", "user"])
+        # 4) 3D lift
+        run_py(["scripts/lift_3d_motionbert.py", "--split", "user", "--lite"])
+        # 5) Align + metrics
+        run_py(["scripts/align_and_metrics.py", "--split", "user"])
+        # 6) Analyze vs baseline (build baseline if missing)
+        if not BASELINE_JSON.exists():
+            try:
+                run_py(["scripts/build_baseline.py"])
+            except Exception:
+                # Baseline build may fail if pro metrics are absent; continue and let analyze raise
+                pass
+        run_py(["scripts/analyze_user_clip.py"])
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
 
     # 6.5) Produce videos (3D render + 2D overlay) for this job
     base_30 = f"{base}_30fps"
