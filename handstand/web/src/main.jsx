@@ -30,8 +30,13 @@ function App() {
           // try to surface backend error details
           let detail = "";
           try {
-            const txt = await res.text();
-            detail = txt;
+            const ct = res.headers.get("content-type") || "";
+            if (ct.includes("application/json")) {
+              const j = await res.json();
+              detail = j?.error ? String(j.error) : JSON.stringify(j);
+            } else {
+              detail = await res.text();
+            }
           } catch {}
           throw new Error(`API error ${res.status}${detail ? `: ${detail}` : ""}`);
         }
