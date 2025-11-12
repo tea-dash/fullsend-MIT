@@ -178,6 +178,17 @@ async def analyze_sync(
         run_py(["scripts/gemini_feedback.py", "--model", gemini_model])
     else:
         run_py(["scripts/gpt_feedback.py"])
+        # If OpenAI feedback failed and Gemini is available, auto-fallback
+        try:
+            gpt_md = feedback_path.read_text(encoding="utf-8")
+            if (gpt_md.startswith("OPENAI_API_KEY not set")
+                or gpt_md.startswith("OpenAI API error")
+            ) and env.get("GOOGLE_API_KEY"):
+                fb_gem = DATA_DIR / "user" / "metrics" / "gemini_feedback.md"
+                run_py(["scripts/gemini_feedback.py", "--model", gemini_model])
+                feedback_path = fb_gem
+        except Exception:
+            pass
 
     # Construct output paths for the frontend
     two_d = f"/data/user/trimmed/{base_30}_annotated.mp4"
