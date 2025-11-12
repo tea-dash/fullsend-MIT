@@ -34,6 +34,32 @@ def run(cmd: list[str]) -> None:
     subprocess.run(cmd, cwd=ROOT, check=True)
 
 
+@app.get("/api/health")
+def health() -> JSONResponse:
+    env = os.environ.copy()
+    mb_dir = Path(env.get("MOTIONBERT_DIR", str(ROOT / "models" / "motionbert_repo")))
+    ckpt_path = mb_dir / MB_LITE_CKPT_REL
+    # detect device
+    device = "cpu"
+    try:
+        import torch  # type: ignore
+        if getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
+            device = "mps"
+    except Exception:
+        device = "cpu"
+    return JSONResponse(
+        {
+            "status": "ok",
+            "baseline_exists": BASELINE_JSON.exists(),
+            "motionbert_dir": str(mb_dir),
+            "mb_ckpt_exists": ckpt_path.exists(),
+            "openai_key_set": bool(env.get("OPENAI_API_KEY")),
+            "google_key_set": bool(env.get("GOOGLE_API_KEY")),
+            "device": device,
+        }
+    )
+
+
 @app.post("/api/analyze-sync")
 async def analyze_sync(
     file: UploadFile = File(...),

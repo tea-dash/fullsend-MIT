@@ -6,10 +6,21 @@ export default defineConfig({
   base: '/',
   plugins: [react()],
   server: {
-    proxy: {
-      '/api': 'http://127.0.0.1:8000',
-      '/data': 'http://127.0.0.1:8000'
-    }
+    proxy: (() => {
+      const target = process.env.VITE_API_TARGET || 'http://127.0.0.1:8000'
+      return {
+        '/api': {
+          target,
+          changeOrigin: true,
+          secure: false,
+        },
+        '/data': {
+          target,
+          changeOrigin: true,
+          secure: false,
+        },
+      }
+    })()
   },
   build: {
     outDir: 'dist'
