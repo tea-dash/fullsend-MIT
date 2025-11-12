@@ -9,6 +9,7 @@ function App() {
   const [llm, setLlm] = useState("gemini");
   const [model, setModel] = useState("gemini-2.5-pro");
   const [log, setLog] = useState([]);
+  const [upright, setUpright] = useState(true); // rotate 180° for display so handstand appears upright
 
   const appendLog = (m) => setLog((prev) => [...prev, m]);
 
@@ -72,6 +73,15 @@ function App() {
               />
             </label>
           )}
+          <label title="Rotate video 180° for display so an upside-down handstand looks upright.">
+            Upright view
+            <input
+              type="checkbox"
+              checked={upright}
+              onChange={(e) => setUpright(e.target.checked)}
+              style={{ marginLeft: 8 }}
+            />
+          </label>
           <button type="submit" disabled={!file || busy}>
             {busy ? "Processing..." : "Analyze"}
           </button>
@@ -90,7 +100,15 @@ function App() {
           <h3>Results</h3>
           <div style={{ marginTop: 8 }}>
             <h4>2D Annotated</h4>
-            <video src={result.two_d} width="100%" controls />
+            <video
+              src={result.two_d}
+              width="100%"
+              controls
+              style={{
+                transform: upright ? "rotate(180deg)" : "none",
+                transformOrigin: "center center",
+              }}
+            />
           </div>
           <div style={{ marginTop: 12 }}>
             <h4>Feedback</h4>
